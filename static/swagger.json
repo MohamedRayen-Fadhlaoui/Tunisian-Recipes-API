@@ -1,0 +1,291 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "version": "1.0.0",
+    "title": "Tunisian Food Recipes API",
+    "description": "API for managing users, recipes, and reviews in a Tunisian food recipe app"
+  },
+  "host": "localhost:5000",
+  "basePath": "/",
+  "schemes": ["http"],
+  "tags": [
+    {
+      "name": "Users",
+      "description": "Operations related to user accounts"
+    },
+    {
+      "name": "Recipes",
+      "description": "Operations related to recipes"
+    },
+    {
+      "name": "Reviews",
+      "description": "Operations related to recipe reviews"
+    }
+  ],
+  "paths": {
+    "/signup": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Sign up a new user",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "formData",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "password",
+            "in": "formData",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": { "description": "User signed up successfully" },
+          "400": { "description": "User already exists" }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Log in an existing user",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "formData",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "password",
+            "in": "formData",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": { "description": "User logged in successfully" },
+          "400": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/user/delete": {
+      "delete": {
+        "tags": ["Users"],
+        "summary": "Delete the current user account",
+        "responses": {
+          "200": { "description": "User account deleted successfully" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "User not found" }
+        }
+      }
+    },
+    "/recipes": {
+      "get": {
+        "tags": ["Recipes"],
+        "summary": "Get all recipes",
+        "responses": {
+          "200": {
+            "description": "List of all recipes",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "integer" },
+                  "name": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              }
+            }
+          },
+          "500": { "description": "Internal server error" }
+        }
+      },
+      "post": {
+        "tags": ["Recipes"],
+        "summary": "Add a new recipe",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": { "description": "Recipe added successfully" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/recipes/{recipe_id}/edit": {
+      "put": {
+        "tags": ["Recipes"],
+        "summary": "Edit a recipe by ID",
+        "parameters": [
+          {
+            "name": "recipe_id",
+            "in": "path",
+            "required": true,
+            "type": "integer"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Recipe updated successfully" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Recipe not found" }
+        }
+      }
+    },
+    "/recipes/{recipe_id}/delete": {
+      "delete": {
+        "tags": ["Recipes"],
+        "summary": "Delete a recipe by ID",
+        "parameters": [
+          {
+            "name": "recipe_id",
+            "in": "path",
+            "required": true,
+            "type": "integer"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Recipe deleted successfully" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Recipe not found" }
+        }
+      }
+    },
+    "/recipes/search": {
+      "get": {
+        "tags": ["Recipes"],
+        "summary": "Search for recipes",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "integer" },
+                  "name": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reviews/{review_id}/edit": {
+      "put": {
+        "tags": ["Reviews"],
+        "summary": "Edit a review by ID",
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "type": "integer"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "rating": { "type": "integer" },
+                "review": { "type": "string" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Review updated successfully" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Review not found or unauthorized" }
+        }
+      }
+    },
+    "/reviews/{review_id}/delete": {
+      "delete": {
+        "tags": ["Reviews"],
+        "summary": "Delete a review by ID",
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "type": "integer"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Review deleted successfully" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Review not found or unauthorized" }
+        }
+      }
+    },
+    "/recipes/{recipe_id}/review": {
+      "post": {
+        "tags": ["Reviews"],
+        "summary": "Add a review to a recipe",
+        "parameters": [
+          {
+            "name": "recipe_id",
+            "in": "path",
+            "required": true,
+            "type": "integer"
+          },
+          {
+            "name": "rating",
+            "in": "formData",
+            "required": true,
+            "type": "integer"
+          },
+          {
+            "name": "review",
+            "in": "formData",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "201": { "description": "Review added successfully" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    }
+  }
+}

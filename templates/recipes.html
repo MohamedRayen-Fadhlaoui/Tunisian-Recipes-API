@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Recipes</title>
+</head>
+<body>
+    <h1>Recipes</h1>
+    <form action="/recipes/search" method="GET">
+        <input type="text" name="query" placeholder="Search Recipes">
+        <button type="submit">Search</button>
+    </form>
+    <ul>
+        {% for recipe in recipes %}
+        <li>
+            <h2>{{ recipe.name }}</h2>
+            <p>{{ recipe.description }}</p>
+            <form action="/recipes/{{ recipe.id }}/review" method="POST">
+                <input type="number" name="rating" min="1" max="5" placeholder="Rating (1-5)" required>
+                <textarea name="review" placeholder="Leave a review"></textarea>
+                <button type="submit">Submit Review</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
