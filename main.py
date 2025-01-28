@@ -2,13 +2,13 @@ from flask import Flask, request, jsonify, render_template, redirect, url_for, s
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, create_refresh_token
-from flask_cors import CORS
 from flask_swagger_ui import get_swaggerui_blueprint
 from sqlalchemy.dialects.sqlite import JSON
+from datetime import timedelta
 
 
 app = Flask(__name__)
-CORS(app)
+
 
 # Database Configurations
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///recipes.db'
@@ -16,6 +16,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'  
 app.config['SECRET_KEY'] = 'your_secret_key'
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = 30  # In minutes or timedelta
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
 
 
 jwt = JWTManager(app)
