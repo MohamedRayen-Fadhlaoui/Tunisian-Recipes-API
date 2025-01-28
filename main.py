@@ -61,21 +61,12 @@ class UserPreference(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
-    preference_type = db.Column(db.String(50), nullable=False)  # Like, View, Favorite, etc.
+    preference_type = db.Column(db.String(50), nullable=False)  # Favorite, etc.
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # Record when interaction occurred
 
     user = db.relationship('User', backref=db.backref('preferences', lazy=True))
     recipe = db.relationship('Recipe', backref=db.backref('preferences', lazy=True))
 
-class UserInteraction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
-    rating = db.Column(db.Integer)  # For ratings between 1 and 5
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-    user = db.relationship('User', backref=db.backref('interactions', lazy=True))
-    recipe = db.relationship('Recipe', backref=db.backref('interactions', lazy=True))
 
 
 
@@ -204,7 +195,7 @@ def favorite_recipe(recipe_id):
 def get_recommendations():
     current_user_id = get_jwt_identity()
     
-    # Get the list of favorite or interacted recipes for the current user
+    # Get the list of favorite recipes for the current user
     user_preferences = UserPreference.query.filter_by(user_id=current_user_id, preference_type='favorite').all()
     favorite_recipe_ids = [preference.recipe_id for preference in user_preferences]
     
