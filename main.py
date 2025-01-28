@@ -4,7 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, create_refresh_token, decode_token
 from flask_swagger_ui import get_swaggerui_blueprint
 from sqlalchemy.dialects.sqlite import JSON
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 
 app = Flask(__name__)
@@ -57,6 +57,29 @@ class Review(db.Model):
     rating = db.Column(db.Integer, nullable=False)
     review = db.Column(db.Text, nullable=True)
 
+class UserPreference(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
+    preference_type = db.Column(db.String(50), nullable=False)  # Like, View, Favorite, etc.
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # Record when interaction occurred
+
+    user = db.relationship('User', backref=db.backref('preferences', lazy=True))
+    recipe = db.relationship('Recipe', backref=db.backref('preferences', lazy=True))
+
+class UserInteraction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
+    rating = db.Column(db.Integer)  # For ratings between 1 and 5
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('interactions', lazy=True))
+    recipe = db.relationship('Recipe', backref=db.backref('interactions', lazy=True))
+
+
+
+#-------------------------------------------------------------------------------
 # Routes
 @app.route('/')
 def home():
@@ -153,6 +176,61 @@ def delete_user():
         return jsonify({'message': 'User account deleted successfully'}), 200
 
     return jsonify({'message': 'User not found'}), 404
+
+@app.route('/recipes/<int:recipe_id>/favorite', methods=['POST'])
+@jwt_required()
+def favorite_recipe(recipe_id):
+    current_user_id = get_jwt_identity()
+    
+    # Check if the recipe already exists in UserPreferences (like a favorite)
+    existing_preference = UserPreference.query.filter_by(user_id=current_user_id, recipe_id=recipe_id, preference_type='favorite').first()
+    
+    if existing_preference:
+        return jsonify({'message': 'Recipe already marked as favorite'}), 400
+    
+    new_preference = UserPreference(
+        user_id=current_user_id,
+        recipe_id=recipe_id,
+        preference_type='favorite'
+    )
+    
+    db.session.add(new_preference)
+    db.session.commit()
+    
+    return jsonify({'message': 'Recipe marked as favorite'}), 201
+
+@app.route('/recommendations', methods=['GET'])
+@jwt_required()
+def get_recommendations():
+    current_user_id = get_jwt_identity()
+    
+    # Get the list of favorite or interacted recipes for the current user
+    user_preferences = UserPreference.query.filter_by(user_id=current_user_id, preference_type='favorite').all()
+    favorite_recipe_ids = [preference.recipe_id for preference in user_preferences]
+    
+    # Find users who liked similar recipes
+    similar_users = UserPreference.query.filter(UserPreference.recipe_id.in_(favorite_recipe_ids)).all()
+    
+    # Get all recipes liked by those similar users, excluding the current user's favorites
+    recommended_recipe_ids = set()
+    for user in similar_users:
+        if user.user_id != current_user_id:  # Avoid recommending recipes that the current user already interacted with
+            recommended_recipe_ids.add(user.recipe_id)
+    
+    # Retrieve recommended recipes based on recipe IDs
+    recommended_recipes = Recipe.query.filter(Recipe.id.in_(recommended_recipe_ids)).all()
+    
+    # Prepare the response with recommended recipes
+    recommendations = [{
+        'id': recipe.id,
+        'name': recipe.name,
+        'ingredients': recipe.ingredients,
+        'calories': recipe.calories,
+        'recipe_type': recipe.recipe_type,
+        'preparation_time': recipe.preparation_time
+    } for recipe in recommended_recipes]
+    
+    return jsonify(recommendations), 200
 
 @app.route('/recipes', methods=['GET'])
 def recipes():
@@ -294,9 +372,53 @@ def delete_review(review_id):
 
 @app.route('/recipes/search', methods=['GET'])
 def search_recipes():
-    query = request.args.get('query')
-    recipes = Recipe.query.filter(Recipe.name.contains(query)).all()
-    return render_template('recipes.html', recipes=recipes)
+    query = request.args.get('query')  # Search by recipe name
+    ingredients = request.args.get('ingredients')  # Search by multiple ingredients to include
+    exclude_ingredients = request.args.get('exclude_ingredients')  # Search by ingredients to exclude
+    calories = request.args.get('calories', type=int)  # Search by calories (less or equal to)
+    preparation_time = request.args.get('preparation_time', type=int)  # Search by preparation time (less or equal to)
+
+    query_filter = Recipe.query
+    
+    # Filter by recipe name (if provided)
+    if query:
+        query_filter = query_filter.filter(Recipe.name.contains(query))
+    
+    # Filter by included ingredients (if provided)
+    if ingredients:
+        ingredients_list = ingredients.split(',')  # Split ingredients by commas
+        for ingredient in ingredients_list:
+            query_filter = query_filter.filter(Recipe.ingredients.contains(ingredient.strip()))  # strip spaces
+    
+    # Filter by excluded ingredients (if provided)
+    if exclude_ingredients:
+        exclude_ingredients_list = exclude_ingredients.split(',')  # Split ingredients by commas
+        for exclude_ingredient in exclude_ingredients_list:
+            query_filter = query_filter.filter(~Recipe.ingredients.contains(exclude_ingredient.strip()))  # Exclude recipes containing these ingredients
+    
+    # Filter by calories (if provided)
+    if calories is not None:
+        query_filter = query_filter.filter(Recipe.calories <= calories)
+    
+    # Filter by preparation time (if provided)
+    if preparation_time is not None:
+        query_filter = query_filter.filter(Recipe.preparation_time <= preparation_time)
+    
+    # Get the filtered recipes
+    recipes = query_filter.all()
+
+    return jsonify([{
+        'id': recipe.id,
+        'name': recipe.name,
+        'ingredients': recipe.ingredients,
+        'calories': recipe.calories,
+        'recipe_type': recipe.recipe_type,
+        'preparation_time': recipe.preparation_time
+    } for recipe in recipes]), 200
+
+
+
+
 
 @app.errorhandler(404)
 def not_found_error(e):
