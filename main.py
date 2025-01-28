@@ -4,6 +4,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_cors import CORS
 from flask_swagger_ui import get_swaggerui_blueprint
+from sqlalchemy.dialects.sqlite import JSON
+
 
 app = Flask(__name__)
 CORS(app)
@@ -40,6 +42,10 @@ class Recipe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False)
     description = db.Column(db.Text, nullable=False)
+    ingredients = db.Column(JSON, nullable=False)  # List of strings stored as JSON
+    calories = db.Column(db.Integer, nullable=False)  # Nutritional information
+    recipe_type = db.Column(db.String(50), nullable=False)  # Type of recipe (e.g., sweet, spicy, savory)
+    preparation_time = db.Column(db.Integer, nullable=False)  # Preparation time in minutes
 
 class Review(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -70,16 +76,31 @@ def signup():
 
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.form
-    username = data['username']
-    password = data['password']
+    try:
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form
 
-    user = User.query.filter_by(username=username).first()
-    if not user or not check_password_hash(user.password, password):
-        return jsonify({'message': 'Invalid credentials'}), 400
+        username = data.get('username')
+        password = data.get('password')
 
-    session['user_id'] = user.id
-    return redirect(url_for('recipes'))
+        # Check if username or password is missing
+        if not username or not password:
+            return jsonify({'message': 'Username and password are required'}), 400
+
+        # Query the database for the user
+        user = User.query.filter_by(username=username).first()
+
+        if not user or not check_password_hash(user.password, password):
+            return jsonify({'message': 'Invalid credentials'}), 400
+
+        session['user_id'] = user.id
+        return jsonify({'message': 'Login successful'}), 200
+
+    except Exception as e:
+        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+
 
 @app.route('/user/delete', methods=['DELETE'])
 def delete_user():
@@ -104,19 +125,40 @@ def recipes():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/recipes/add', methods=['POST'])
+@jwt_required()
 def add_recipe():
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 401
+    current_user = get_jwt_identity()
 
-    data = request.json
-    name = data['name']
-    description = data['description']
+    try:
+        data = request.json
+        name = data.get('name')
+        description = data.get('description')
+        ingredients = data.get('ingredients')
+        calories = data.get('calories')
+        recipe_type = data.get('recipe_type')
+        preparation_time = data.get('preparation_time')
 
-    new_recipe = Recipe(name=name, description=description)
-    db.session.add(new_recipe)
-    db.session.commit()
+        if not all([name, description, ingredients, calories, recipe_type, preparation_time]):
+            return jsonify({'message': 'All fields are required'}), 400
 
-    return jsonify({'message': 'Recipe added successfully'}), 201
+        # Add recipe to the database
+        new_recipe = Recipe(
+            name=name,
+            description=description,
+            ingredients=ingredients,
+            calories=calories,
+            recipe_type=recipe_type,
+            preparation_time=preparation_time
+        )
+        db.session.add(new_recipe)
+        db.session.commit()
+
+        return jsonify({'message': 'Recipe added successfully', 'recipe_id': new_recipe.id}), 201
+
+    except Exception as e:
+        return jsonify({'message': 'Failed to add recipe', 'error': str(e)}), 500
+
+
 
 @app.route('/recipes/<int:recipe_id>/edit', methods=['PUT'])
 def edit_recipe(recipe_id):
