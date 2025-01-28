@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, create_refresh_token
 from flask_cors import CORS
 from flask_swagger_ui import get_swaggerui_blueprint
 from sqlalchemy.dialects.sqlite import JSON
@@ -15,6 +15,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///recipes.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'  
 app.config['SECRET_KEY'] = 'your_secret_key'
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = 30  # In minutes or timedelta
+
 
 jwt = JWTManager(app)
 db = SQLAlchemy(app)
@@ -77,29 +79,47 @@ def signup():
 @app.route('/login', methods=['POST'])
 def login():
     try:
-        if request.is_json:
-            data = request.get_json()
-        else:
-            data = request.form
-
+        data = request.form
         username = data.get('username')
         password = data.get('password')
 
-        # Check if username or password is missing
+        # Validate inputs
         if not username or not password:
             return jsonify({'message': 'Username and password are required'}), 400
 
-        # Query the database for the user
+        # Query the user from the database
         user = User.query.filter_by(username=username).first()
 
         if not user or not check_password_hash(user.password, password):
             return jsonify({'message': 'Invalid credentials'}), 400
 
-        session['user_id'] = user.id
-        return jsonify({'message': 'Login successful'}), 200
+        # Create a JWT token
+        access_token = create_access_token(identity=user.id)  # Use user ID as the identity
+        return jsonify({'message': 'Login successful', 'access_token': access_token}), 200
 
     except Exception as e:
         return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+    
+
+@app.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def refresh_token():
+    current_user_id = get_jwt_identity()
+    new_access_token = create_access_token(identity=current_user_id)
+    return jsonify({'access_token': new_access_token}), 200
+
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({'message': 'The token has expired'}), 401
+
+@jwt.invalid_token_loader
+def invalid_token_callback(error):
+    return jsonify({'message': 'Invalid token'}), 401
+
+@jwt.unauthorized_loader
+def missing_token_callback(error):
+    return jsonify({'message': 'Token is missing'}), 401
+
 
 
 @app.route('/user/delete', methods=['DELETE'])
@@ -124,10 +144,12 @@ def recipes():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
 @app.route('/recipes/add', methods=['POST'])
 @jwt_required()
 def add_recipe():
-    current_user = get_jwt_identity()
+    current_user_id = get_jwt_identity()  # Get the current user ID from the JWT
 
     try:
         data = request.json
@@ -157,6 +179,7 @@ def add_recipe():
 
     except Exception as e:
         return jsonify({'message': 'Failed to add recipe', 'error': str(e)}), 500
+
 
 
 
