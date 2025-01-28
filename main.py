@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, create_refresh_token
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, create_refresh_token, decode_token
 from flask_swagger_ui import get_swaggerui_blueprint
 from sqlalchemy.dialects.sqlite import JSON
 from datetime import timedelta
@@ -62,6 +62,16 @@ class Review(db.Model):
 def home():
     return render_template('index.html')
 
+@app.route('/decode-token', methods=['POST'])
+def decode_token_endpoint():
+    try:
+        token = request.headers.get("Authorization").split(" ")[1]
+        decoded = decode_token(token)
+        return jsonify(decoded), 200
+    except Exception as e:
+        return jsonify({'message': 'Invalid token', 'error': str(e)}), 400
+
+
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.form
@@ -94,12 +104,19 @@ def login():
         if not user or not check_password_hash(user.password, password):
             return jsonify({'message': 'Invalid credentials'}), 400
 
-        # Create a JWT token
-        access_token = create_access_token(identity=user.id)  # Use user ID as the identity
-        return jsonify({'message': 'Login successful', 'access_token': access_token}), 200
+        # Create a JWT token with user ID as a string
+        access_token = create_access_token(identity=str(user.id))
+        refresh_token = create_refresh_token(identity=str(user.id))
+
+        return jsonify({
+            'message': 'Login successful',
+            'access_token': access_token,
+            'refresh_token': refresh_token
+        }), 200
 
     except Exception as e:
         return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+
     
 
 @app.route('/refresh', methods=['POST'])
