@@ -5,12 +5,14 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from flask_swagger_ui import get_swaggerui_blueprint
 from sqlalchemy.dialects.sqlite import JSON
 from datetime import timedelta, datetime
+from flask import send_from_directory
+import os
 
 
 app = Flask(__name__)
 
 
-# Database Configurations
+# Configurations
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///recipes.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'  
@@ -34,6 +36,8 @@ swaggerui_blueprint = get_swaggerui_blueprint(
 
 # Register Swagger UI blueprint
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
+
+#------------------------------------------------------------------------------------------------------------------------
 
 # Models
 class User(db.Model):
@@ -70,21 +74,18 @@ class UserPreference(db.Model):
 
 
 
-#-------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------
+
 # Routes
+    
+@app.route("/static/swagger.json")
+def swagger_json():
+    return send_from_directory(os.path.join(app.root_path, "static"), "swagger.json")
+
+
 @app.route('/')
 def home():
     return render_template('index.html')
-
-@app.route('/decode-token', methods=['POST'])
-def decode_token_endpoint():
-    try:
-        token = request.headers.get("Authorization").split(" ")[1]
-        decoded = decode_token(token)
-        return jsonify(decoded), 200
-    except Exception as e:
-        return jsonify({'message': 'Invalid token', 'error': str(e)}), 400
-
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -167,6 +168,8 @@ def delete_user():
         return jsonify({'message': 'User account deleted successfully'}), 200
 
     return jsonify({'message': 'User not found'}), 404
+
+#-------------------------------------------------------------------------------------
 
 @app.route('/recipes/<int:recipe_id>/favorite', methods=['POST'])
 @jwt_required()
@@ -408,6 +411,7 @@ def search_recipes():
     } for recipe in recipes]), 200
 
 
+#------------------------------------------------------------------------------------------------------------------------
 
 
 
@@ -418,6 +422,8 @@ def not_found_error(e):
 @app.errorhandler(500)
 def internal_error(e):
     return jsonify({"error": "Internal server error"}), 500
+
+#------------------------------------------------------------------------------------------------------------------------
 
 if __name__ == '__main__':
     with app.app_context():
